@@ -1,0 +1,22 @@
+.navbar{
+    display: flex;
+    flex-direction: row;
+    justify-content:flex-end;
+    gap:30px;
+    background-color: blue;
+
+    
+}
+.navbar li {
+    
+    
+    list-style: none;
+}
+.navbar li a{
+    text-decoration: none;
+    color: white;
+}
+.navbar li a:hover{
+    text-decoration: dashed;
+    color:black;
+}
