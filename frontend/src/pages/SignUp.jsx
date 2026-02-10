@@ -108,7 +108,7 @@ const SignUp = () => {
         }
       } else {
         // Use backend for Email OTP
-        const response = await fetch('http://localhost:3000/otp/send', {
+        const response = await fetch('https://farmer-market-portal.onrender.com/otp/send', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -163,7 +163,7 @@ const SignUp = () => {
         }
       } else {
         // Verify using backend for email OTP
-        const response = await fetch('http://localhost:3000/otp/verify', {
+        const response = await fetch('https://farmer-market-portal.onrender.com/otp/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -202,7 +202,7 @@ const SignUp = () => {
   // Register user with specific data (for Phone.Email callback)
   const registerUserWithData = async (data) => {
     try {
-      const response = await fetch('http://localhost:3000/auth/register', {
+      const response = await fetch('https://farmer-market-portal.onrender.com/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

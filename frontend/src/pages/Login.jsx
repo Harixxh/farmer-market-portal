@@ -24,7 +24,7 @@ const Login = () => {
     try {
       setLoading(true)
       setError('')
-      const response = await fetch('http://localhost:3000/auth/google', {
+      const response = await fetch('https://farmer-market-portal.onrender.com/auth/google', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -65,7 +65,7 @@ const Login = () => {
     setError('')
     
     try {
-      const response = await fetch('http://localhost:3000/auth/login', {
+      const response = await fetch('https://farmer-market-portal.onrender.com/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

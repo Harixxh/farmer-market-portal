@@ -20,7 +20,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3000/auth/forgot-password', { email })
+      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/forgot-password', { email })
       setSuccess(response.data.message)
       setStep(2)
     } catch (err) {
@@ -37,7 +37,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3000/auth/verify-reset-otp', { email, otp })
+      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/verify-reset-otp', { email, otp })
       setSuccess(response.data.message)
       setStep(3)
     } catch (err) {
@@ -65,7 +65,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3000/auth/reset-password', { email, newPassword })
+      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/reset-password', { email, newPassword })
       setSuccess(response.data.message)
       setTimeout(() => {
         navigate('/login')
@@ -83,7 +83,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3000/auth/forgot-password', { email })
+      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/forgot-password', { email })
       setSuccess('OTP resent successfully')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend OTP')
