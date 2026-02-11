@@ -3,6 +3,7 @@ const FarmerProfile = require('../models/FarmerProfile')
 const BuyerProfile = require('../models/BuyerProfile')
 const Produce = require('../models/Produce')
 const Order = require('../models/Order')
+const bcrypt = require('bcryptjs')
 
 // Get current user profile
 exports.getProfile = async (req, res) => {
@@ -260,6 +261,224 @@ exports.getAllFarmers = async (req, res) => {
         })
     } catch (error) {
         console.error('Get all farmers error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Change password
+exports.changePassword = async (req, res) => {
+    try {
+        const userId = req.userId
+        const { currentPassword, newPassword } = req.body
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Current password and new password are required' 
+            })
+        }
+
+        const user = await User.findById(userId)
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' })
+        }
+
+        // Check current password
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password)
+        if (!isPasswordValid) {
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' })
+        }
+
+        // Hash new password
+        const saltRounds = 12
+        const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds)
+
+        // Update password
+        await User.findByIdAndUpdate(userId, { password: hashedNewPassword })
+
+        res.json({
+            success: true,
+            message: 'Password changed successfully'
+        })
+    } catch (error) {
+        console.error('Change password error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Enable 2FA
+exports.enable2FA = async (req, res) => {
+    try {
+        const userId = req.userId
+        
+        await User.findByIdAndUpdate(userId, { twoFAEnabled: true })
+
+        res.json({
+            success: true,
+            message: 'Two-factor authentication enabled successfully'
+        })
+    } catch (error) {
+        console.error('Enable 2FA error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Disable 2FA
+exports.disable2FA = async (req, res) => {
+    try {
+        const userId = req.userId
+        
+        await User.findByIdAndUpdate(userId, { twoFAEnabled: false })
+
+        res.json({
+            success: true,
+            message: 'Two-factor authentication disabled successfully'
+        })
+    } catch (error) {
+        console.error('Disable 2FA error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Delete account
+exports.deleteAccount = async (req, res) => {
+    try {
+        const userId = req.userId
+        
+        // Delete profile based on user role
+        const user = await User.findById(userId)
+        if (user?.role === 'farmer') {
+            await FarmerProfile.findOneAndDelete({ user: userId })
+            await Produce.deleteMany({ farmer: userId })
+        } else if (user?.role === 'buyer') {
+            await BuyerProfile.findOneAndDelete({ user: userId })
+        }
+
+        // Delete user's orders
+        await Order.deleteMany({ $or: [{ buyer: userId }, { farmer: userId }] })
+        
+        // Delete user
+        await User.findByIdAndDelete(userId)
+
+        res.json({
+            success: true,
+            message: 'Account deleted successfully'
+        })
+    } catch (error) {
+        console.error('Delete account error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Update notification preferences
+exports.updateNotifications = async (req, res) => {
+    try {
+        const userId = req.userId
+        const { notifications } = req.body
+
+        await User.findByIdAndUpdate(userId, { notificationSettings: notifications })
+
+        res.json({
+            success: true,
+            message: 'Notification preferences updated successfully'
+        })
+    } catch (error) {
+        console.error('Update notifications error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Change password
+exports.changePassword = async (req, res) => {
+    try {
+        const userId = req.userId
+        const { currentPassword, newPassword } = req.body
+
+        // Get user with password
+        const user = await User.findById(userId)
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' })
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password)
+        if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' })
+        }
+
+        // Hash new password
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10)
+
+        // Update password
+        await User.findByIdAndUpdate(userId, { password: hashedNewPassword })
+
+        res.json({
+            success: true,
+            message: 'Password changed successfully'
+        })
+    } catch (error) {
+        console.error('Change password error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Enable 2FA (placeholder implementation)
+exports.enable2FA = async (req, res) => {
+    try {
+        const userId = req.userId
+
+        // In a real implementation, you would generate and return QR code or setup key
+        await User.findByIdAndUpdate(userId, { twoFactorEnabled: true })
+
+        res.json({
+            success: true,
+            message: 'Two-factor authentication enabled successfully'
+        })
+    } catch (error) {
+        console.error('Enable 2FA error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Disable 2FA
+exports.disable2FA = async (req, res) => {
+    try {
+        const userId = req.userId
+
+        await User.findByIdAndUpdate(userId, { twoFactorEnabled: false })
+
+        res.json({
+            success: true,
+            message: 'Two-factor authentication disabled successfully'
+        })
+    } catch (error) {
+        console.error('Disable 2FA error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Delete account
+exports.deleteAccount = async (req, res) => {
+    try {
+        const userId = req.userId
+
+        // Delete associated profiles
+        await FarmerProfile.deleteOne({ user: userId })
+        await BuyerProfile.deleteOne({ user: userId })
+        
+        // Delete associated produce and orders
+        await Produce.deleteMany({ farmer: userId })
+        await Order.deleteMany({ $or: [{ buyer: userId }, { farmer: userId }] })
+
+        // Delete user
+        await User.findByIdAndDelete(userId)
+
+        res.json({
+            success: true,
+            message: 'Account deleted successfully'
+        })
+    } catch (error) {
+        console.error('Delete account error:', error)
         res.status(500).json({ success: false, message: 'Server error', error: error.message })
     }
 }

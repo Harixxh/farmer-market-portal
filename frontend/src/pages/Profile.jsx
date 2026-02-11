@@ -72,16 +72,7 @@ const Profile = () => {
   })
   const [twoFAEnabled, setTwoFAEnabled] = useState(false)
   const [savingNotifications, setSavingNotifications] = useState(false)
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [showTwoFAModal, setShowTwoFAModal] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false)
-  const [savingNotifications, setSavingNotifications] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
 
   useEffect(() => {
     fetchProfileData()
@@ -330,75 +321,7 @@ const Profile = () => {
     
     setSavingNotifications(true)
     try {
-      // In a real app, you'd save to backend here
-      // await api.put('/api/profile/notifications', { notifications: updatedNotifications })
-      setTimeout(() => setSavingNotifications(false), 500)
-    } catch (error) {
-      console.error('Error saving notifications:', error)
-      setNotifications(notifications)
-      setError('Failed to save notification preferences')
-      setSavingNotifications(false)
-    }
-  }
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault()
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError('New passwords do not match')
-      return
-    }
-    if (passwordForm.newPassword.length < 6) {
-      setError('Password must be at least 6 characters long')
-      return
-    }
-    
-    try {
-      // In a real app, you'd call the backend API here
-      // await api.put('/api/profile/change-password', {
-      //   currentPassword: passwordForm.currentPassword,
-      //   newPassword: passwordForm.newPassword
-      // })
-      setShowPasswordModal(false)
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      setSuccessMsg('Password changed successfully!')
-      setTimeout(() => setSuccessMsg(''), 3000)
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to change password')
-    }
-  }
-
-  const handleToggleTwoFA = async () => {
-    try {
-      if (twoFAEnabled) {
-        setTwoFAEnabled(false)
-        setSuccessMsg('Two-factor authentication disabled')
-        setTimeout(() => setSuccessMsg(''), 3000)
-      } else {
-        setShowTwoFAModal(true)
-      }
-    } catch (error) {
-      setError('Failed to update two-factor authentication')
-    }
-  }
-
-  const handleDeleteAccount = async () => {
-    try {
-      // In a real app, you'd call the backend to delete the account
-      // await api.delete('/api/profile/delete-account')
-      alert('Account deletion functionality would be implemented here')
-      setShowDeleteModal(false)
-    } catch (error) {
-      setError('Failed to delete account')
-    }
-  }
-
-  const handleNotificationChange = async (key, value) => {
-    const updatedNotifications = { ...notifications, [key]: value }
-    setNotifications(updatedNotifications)
-    
-    setSavingNotifications(true)
-    try {
-      await api.put('/api/profile/notifications', { notifications: updatedNotifications })
+      await profileAPI.put('/notifications', { notifications: updatedNotifications })
     } catch (error) {
       console.error('Error saving notifications:', error)
       // Revert on error
@@ -421,13 +344,14 @@ const Profile = () => {
     }
     
     try {
-      await api.put('/api/profile/change-password', {
+      await profileAPI.put('/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword
       })
       setShowPasswordModal(false)
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      alert('Password changed successfully!')
+      setSuccessMsg('Password changed successfully!')
+      setTimeout(() => setSuccessMsg(''), 3000)
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to change password')
     }
@@ -436,9 +360,10 @@ const Profile = () => {
   const handleToggleTwoFA = async () => {
     try {
       if (twoFAEnabled) {
-        await api.put('/api/profile/disable-2fa')
+        await profileAPI.put('/disable-2fa')
         setTwoFAEnabled(false)
-        alert('Two-factor authentication disabled')
+        setSuccessMsg('Two-factor authentication disabled')
+        setTimeout(() => setSuccessMsg(''), 3000)
       } else {
         setShowTwoFAModal(true)
       }
@@ -449,10 +374,12 @@ const Profile = () => {
 
   const handleDeleteAccount = async () => {
     try {
-      await api.delete('/api/profile/delete-account')
+      await profileAPI.delete('/delete-account')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('userEmail')
+      setShowDeleteModal(false)
+      setSuccessMsg('Account deleted successfully')
       navigate('/login')
     } catch (error) {
       setError('Failed to delete account')
@@ -662,6 +589,18 @@ const Profile = () => {
             </button>
           ))}
         </div>
+
+        {/* Error and Success Messages */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+        {successMsg && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700 text-sm">{successMsg}</p>
+          </div>
+        )}
 
         {/* Profile Details Tab */}
         {activeTab === 'profile' && (
@@ -1366,11 +1305,16 @@ const Profile = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setTwoFAEnabled(true)
-                    setShowTwoFAModal(false)
-                    setSuccessMsg('Two-factor authentication enabled!')
-                    setTimeout(() => setSuccessMsg(''), 3000)
+                  onClick={async () => {
+                    try {
+                      await profileAPI.put('/enable-2fa')
+                      setTwoFAEnabled(true)
+                      setShowTwoFAModal(false)
+                      setSuccessMsg('Two-factor authentication enabled!')
+                      setTimeout(() => setSuccessMsg(''), 3000)
+                    } catch (error) {
+                      setError('Failed to enable two-factor authentication')
+                    }
                   }}
                   className="flex-1 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
                 >

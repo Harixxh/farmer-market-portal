@@ -36,6 +36,18 @@ const UserSchema=mongoose.Schema({
         type:Boolean,
         default:false
     },
+    twoFAEnabled:{
+        type:Boolean,
+        default:false
+    },
+    notificationSettings:{
+        priceAlerts: {type: Boolean, default: true},
+        weatherAlerts: {type: Boolean, default: true},
+        buyerMessages: {type: Boolean, default: true},
+        newsletter: {type: Boolean, default: false},
+        smsAlerts: {type: Boolean, default: true},
+        emailAlerts: {type: Boolean, default: true}
+    },
     createdAt:{
         type:Date,
         default:Date.now

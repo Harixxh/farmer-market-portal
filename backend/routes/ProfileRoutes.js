@@ -30,4 +30,11 @@ router.get('/buyers', ProfileController.getAllBuyers)
 // Get all farmers (public for buyers)
 router.get('/farmers', ProfileController.getAllFarmers)
 
+// Security routes
+router.put('/change-password', ProfileController.changePassword)
+router.put('/enable-2fa', ProfileController.enable2FA)
+router.put('/disable-2fa', ProfileController.disable2FA)
+router.delete('/delete-account', ProfileController.deleteAccount)
+router.put('/notifications', ProfileController.updateNotifications)
+
 module.exports = router

@@ -66,7 +66,10 @@ export const profileAPI = {
     getFarmerStats: () => api.get('/api/profile/farmer/stats'),
     getBuyerStats: () => api.get('/api/profile/buyer/stats'),
     getAllBuyers: () => api.get('/api/profile/buyers'),
-    getAllFarmers: () => api.get('/api/profile/farmers')
+    getAllFarmers: () => api.get('/api/profile/farmers'),
+    // Security and settings endpoints
+    put: (endpoint, data) => api.put(`/api/profile${endpoint}`, data),
+    delete: (endpoint) => api.delete(`/api/profile${endpoint}`)
 }
 
 // Produce API
