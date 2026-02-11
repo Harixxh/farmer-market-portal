@@ -160,7 +160,7 @@ const NavBar = () => {
           {/* Logo */}
           <Link to={getHomePath()} className="flex items-center gap-2">
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="AgriMarket" className="w-10 h-10 object-contain" />
-            <span className="text-xl font-bold text-green-700 hidden sm:block">AgriMarket</span>
+            <span className="text-lg sm:text-xl font-bold text-green-700">AgriMarket</span>
           </Link>
 
           {/* Desktop Navigation */}
