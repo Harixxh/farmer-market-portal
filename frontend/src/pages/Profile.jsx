@@ -62,6 +62,26 @@ const Profile = () => {
     smsAlerts: true,
     emailAlerts: true
   })
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [twoFAEnabled, setTwoFAEnabled] = useState(false)
+  const [savingNotifications, setSavingNotifications] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [twoFAEnabled, setTwoFAEnabled] = useState(false)
+  const [savingNotifications, setSavingNotifications] = useState(false)
 
   useEffect(() => {
     fetchProfileData()
@@ -113,6 +133,16 @@ const Profile = () => {
           // Buyer fields
           shippingAddresses: profileData?.shippingAddresses || []
         }))
+
+        // Load notification preferences
+        if (profileData?.notificationPreferences) {
+          setNotifications(profileData.notificationPreferences)
+        }
+        
+        // Load security settings
+        if (profileData?.twoFactorEnabled) {
+          setTwoFAEnabled(profileData.twoFactorEnabled)
+        }
 
         // Fetch stats based on role
         if (userData.role === 'farmer') {
@@ -292,6 +322,141 @@ const Profile = () => {
       ...prev,
       shippingAddresses: updatedAddresses
     }))
+  }
+
+  const handleNotificationChange = async (key, value) => {
+    const updatedNotifications = { ...notifications, [key]: value }
+    setNotifications(updatedNotifications)
+    
+    setSavingNotifications(true)
+    try {
+      // In a real app, you'd save to backend here
+      // await api.put('/api/profile/notifications', { notifications: updatedNotifications })
+      setTimeout(() => setSavingNotifications(false), 500)
+    } catch (error) {
+      console.error('Error saving notifications:', error)
+      setNotifications(notifications)
+      setError('Failed to save notification preferences')
+      setSavingNotifications(false)
+    }
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New passwords do not match')
+      return
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setError('Password must be at least 6 characters long')
+      return
+    }
+    
+    try {
+      // In a real app, you'd call the backend API here
+      // await api.put('/api/profile/change-password', {
+      //   currentPassword: passwordForm.currentPassword,
+      //   newPassword: passwordForm.newPassword
+      // })
+      setShowPasswordModal(false)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setSuccessMsg('Password changed successfully!')
+      setTimeout(() => setSuccessMsg(''), 3000)
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to change password')
+    }
+  }
+
+  const handleToggleTwoFA = async () => {
+    try {
+      if (twoFAEnabled) {
+        setTwoFAEnabled(false)
+        setSuccessMsg('Two-factor authentication disabled')
+        setTimeout(() => setSuccessMsg(''), 3000)
+      } else {
+        setShowTwoFAModal(true)
+      }
+    } catch (error) {
+      setError('Failed to update two-factor authentication')
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    try {
+      // In a real app, you'd call the backend to delete the account
+      // await api.delete('/api/profile/delete-account')
+      alert('Account deletion functionality would be implemented here')
+      setShowDeleteModal(false)
+    } catch (error) {
+      setError('Failed to delete account')
+    }
+  }
+
+  const handleNotificationChange = async (key, value) => {
+    const updatedNotifications = { ...notifications, [key]: value }
+    setNotifications(updatedNotifications)
+    
+    setSavingNotifications(true)
+    try {
+      await api.put('/api/profile/notifications', { notifications: updatedNotifications })
+    } catch (error) {
+      console.error('Error saving notifications:', error)
+      // Revert on error
+      setNotifications(notifications)
+      setError('Failed to save notification preferences')
+    } finally {
+      setSavingNotifications(false)
+    }
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New passwords do not match')
+      return
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setError('Password must be at least 6 characters long')
+      return
+    }
+    
+    try {
+      await api.put('/api/profile/change-password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      })
+      setShowPasswordModal(false)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      alert('Password changed successfully!')
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to change password')
+    }
+  }
+
+  const handleToggleTwoFA = async () => {
+    try {
+      if (twoFAEnabled) {
+        await api.put('/api/profile/disable-2fa')
+        setTwoFAEnabled(false)
+        alert('Two-factor authentication disabled')
+      } else {
+        setShowTwoFAModal(true)
+      }
+    } catch (error) {
+      setError('Failed to update two-factor authentication')
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    try {
+      await api.delete('/api/profile/delete-account')
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('userEmail')
+      navigate('/login')
+    } catch (error) {
+      setError('Failed to delete account')
+    }
   }
 
   // SVG Icons
@@ -1030,10 +1195,11 @@ const Profile = () => {
                     <p className="text-sm text-gray-500">{item.desc}</p>
                   </div>
                   <button
-                    onClick={() => setNotifications({...notifications, [item.key]: !notifications[item.key]})}
+                    onClick={() => handleNotificationChange(item.key, !notifications[item.key])}
+                    disabled={savingNotifications}
                     className={`relative w-12 h-6 rounded-full transition-colors ${
                       notifications[item.key] ? 'bg-green-600' : 'bg-gray-300'
-                    }`}
+                    } ${savingNotifications ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
                       notifications[item.key] ? 'left-7' : 'left-1'
@@ -1056,7 +1222,10 @@ const Profile = () => {
                     <p className="font-medium text-gray-900">Change Password</p>
                     <p className="text-sm text-gray-500">Update your password regularly for security</p>
                   </div>
-                  <button className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                  <button 
+                    onClick={() => setShowPasswordModal(true)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                  >
                     Update
                   </button>
                 </div>
@@ -1067,8 +1236,15 @@ const Profile = () => {
                     <p className="font-medium text-gray-900">Two-Factor Authentication</p>
                     <p className="text-sm text-gray-500">Add extra security to your account</p>
                   </div>
-                  <button className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
-                    Enable
+                  <button 
+                    onClick={handleToggleTwoFA}
+                    className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+                      twoFAEnabled 
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {twoFAEnabled ? 'Disable' : 'Enable'}
                   </button>
                 </div>
               </div>
@@ -1078,10 +1254,128 @@ const Profile = () => {
                     <p className="font-medium text-red-700">Delete Account</p>
                     <p className="text-sm text-red-500">Permanently delete your account and data</p>
                   </div>
-                  <button className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors">
+                  <button 
+                    onClick={() => setShowDeleteModal(true)}
+                    className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                  >
                     Delete
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    required
+                    minLength="6"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    required
+                    minLength="6"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Update Password
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Account Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-red-700 mb-4">Delete Account</h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete your account? This action cannot be undone and will permanently delete all your data.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Two-Factor Authentication Modal */}
+        {showTwoFAModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Enable Two-Factor Authentication</h3>
+              <p className="text-gray-600 mb-6">
+                Two-factor authentication adds an extra layer of security to your account. You'll need to enter a verification code from your phone each time you log in.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTwoFAModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setTwoFAEnabled(true)
+                    setShowTwoFAModal(false)
+                    setSuccessMsg('Two-factor authentication enabled!')
+                    setTimeout(() => setSuccessMsg(''), 3000)
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Enable 2FA
+                </button>
               </div>
             </div>
           </div>
