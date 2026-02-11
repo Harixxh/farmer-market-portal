@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
+import LoadingOverlay, { ErrorBanner, SuccessToast, ButtonSpinner } from '../components/LoadingOverlay';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -25,7 +26,12 @@ const AdminDashboard = () => {
     pendingOrders: 0
   });
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [showAddScheme, setShowAddScheme] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [paymentStats, setPaymentStats] = useState({ totalCollected: 0, totalRefunded: 0, pendingPayouts: 0, farmerPayoutTotal: 0 });
   const [newScheme, setNewScheme] = useState({
     name: '',
     description: '',
@@ -64,12 +70,13 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     try {
       const cfg = { _skipAuthRedirect: true };
-      const [usersRes, produceRes, ordersRes, schemesRes, pricesRes] = await Promise.all([
+      const [usersRes, produceRes, ordersRes, schemesRes, pricesRes, paymentsRes] = await Promise.all([
         api.get('/api/admin/users', cfg).catch(() => ({ data: { users: [] } })),
         api.get('/api/admin/produce', cfg).catch(() => ({ data: { produce: [] } })),
         api.get('/api/admin/orders', cfg).catch(() => ({ data: { orders: [] } })),
         api.get('/api/schemes', cfg).catch(() => ({ data: { schemes: [] } })),
-        api.get('/api/market/prices', cfg).catch(() => ({ data: { prices: [] } }))
+        api.get('/api/market/prices', cfg).catch(() => ({ data: { prices: [] } })),
+        api.get('/api/admin/payments', cfg).catch(() => ({ data: { payments: [], stats: {} } }))
       ]);
       
       const usersData = usersRes.data.users || [];
@@ -82,6 +89,8 @@ const AdminDashboard = () => {
       setOrders(ordersData);
       setSchemes(schemesData);
       setMarketPrices(pricesRes.data.prices || []);
+      setPayments(paymentsRes.data.payments || []);
+      setPaymentStats(paymentsRes.data.stats || { totalCollected: 0, totalRefunded: 0, pendingPayouts: 0, farmerPayoutTotal: 0 });
       
       setStats({
         totalUsers: usersData.length,
@@ -93,51 +102,77 @@ const AdminDashboard = () => {
       });
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('Failed to load admin data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBlockUser = async (userId, blocked) => {
+    setActionLoading('block-' + userId);
     try {
       await api.patch(`/api/admin/users/${userId}/block`, { blocked });
       fetchData();
+      setSuccessMsg(blocked ? 'User blocked' : 'User unblocked');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error updating user:', error);
+      setError('Failed to update user.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleChangeRole = async (userId, role) => {
+    setActionLoading('role-' + userId);
     try {
       await api.patch(`/api/admin/users/${userId}/role`, { role });
       fetchData();
+      setSuccessMsg('Role changed successfully');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error changing role:', error);
+      setError('Failed to change role.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
+    setActionLoading('delUser-' + userId);
     try {
       await api.delete(`/api/admin/users/${userId}`);
       fetchData();
+      setSuccessMsg('User deleted');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error deleting user:', error);
+      setError('Failed to delete user.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDeleteProduce = async (produceId) => {
     if (!window.confirm('Are you sure you want to delete this produce listing?')) return;
+    setActionLoading('delProd-' + produceId);
     try {
       await api.delete(`/api/admin/produce/${produceId}`);
       fetchData();
+      setSuccessMsg('Produce deleted');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error deleting produce:', error);
+      setError('Failed to delete produce.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleAddScheme = async (e) => {
     e.preventDefault();
+    setActionLoading('addScheme');
     try {
       await api.post('/api/schemes', newScheme);
       setShowAddScheme(false);
@@ -146,33 +181,57 @@ const AdminDashboard = () => {
         eligibility: '', deadline: '', link: '', status: 'Active'
       });
       fetchData();
+      setSuccessMsg('Scheme added successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error adding scheme:', error);
-      alert('Failed to add scheme');
+      setError('Failed to add scheme.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDeleteScheme = async (schemeId) => {
     if (!window.confirm('Are you sure you want to delete this scheme?')) return;
+    setActionLoading('delScheme-' + schemeId);
     try {
       await api.delete(`/api/schemes/${schemeId}`);
       fetchData();
+      setSuccessMsg('Scheme deleted');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error deleting scheme:', error);
+      setError('Failed to delete scheme.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMarkFarmerPaid = async (orderId) => {
+    if (!window.confirm('Confirm: You have transferred the payment to this farmer?')) return;
+    setActionLoading('farmerPaid-' + orderId);
+    try {
+      await api.patch(`/api/admin/payments/${orderId}/farmer-paid`);
+      fetchData();
+      setSuccessMsg('Farmer payout marked as completed!');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      console.error('Error marking farmer paid:', error);
+      setError('Failed to mark farmer payout.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    );
+    return <LoadingOverlay show={true} fullPage={true} message="Loading admin panel..." />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SuccessToast message={successMsg} onDismiss={() => setSuccessMsg('')} />
       <div className="max-w-7xl mx-auto px-4 py-6">
+        <ErrorBanner message={error} onDismiss={() => setError('')} />
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
@@ -799,6 +858,158 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Payments Tab */}
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            {/* Payment Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total Collected</p>
+                    <p className="text-2xl font-bold text-gray-800">₹{paymentStats.totalCollected?.toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Pending Farmer Payouts</p>
+                    <p className="text-2xl font-bold text-gray-800">{paymentStats.pendingPayouts}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Payout Amount Due</p>
+                    <p className="text-2xl font-bold text-gray-800">₹{paymentStats.farmerPayoutTotal?.toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total Refunded</p>
+                    <p className="text-2xl font-bold text-gray-800">₹{paymentStats.totalRefunded?.toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Flow Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="font-medium text-blue-800">Payment Flow</p>
+                  <p className="text-sm text-blue-700 mt-1">Buyer pays via Razorpay → Money goes to your Razorpay account → Once order is delivered, transfer payment to the farmer via bank transfer/UPI → Mark as "Paid" here.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Payments Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800">All Payments</h3>
+              </div>
+              {payments.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No payments recorded yet</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left p-3 font-medium text-gray-600">Order</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Buyer</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Farmer</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Amount</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Method</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Status</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Farmer Payout</th>
+                        <th className="text-left p-3 font-medium text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {payments.map((payment) => (
+                        <tr key={payment._id} className="hover:bg-gray-50">
+                          <td className="p-3">
+                            <p className="font-medium text-gray-800">{payment.produce?.cropName || 'N/A'}</p>
+                            <p className="text-xs text-gray-400">#{payment._id?.slice(-6)}</p>
+                          </td>
+                          <td className="p-3">{payment.buyer?.name || 'N/A'}</td>
+                          <td className="p-3">{payment.farmer?.name || 'N/A'}</td>
+                          <td className="p-3 font-semibold">₹{payment.amount?.toLocaleString('en-IN')}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              payment.paymentMethod === 'razorpay' ? 'bg-blue-100 text-blue-700' :
+                              payment.paymentMethod === 'cod' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {payment.paymentMethod === 'razorpay' ? 'Online' : payment.paymentMethod?.toUpperCase() || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              payment.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' :
+                              payment.paymentStatus === 'refunded' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {payment.paymentStatus}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {payment.farmerPaidOut ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ Paid</span>
+                            ) : (payment.status === 'delivered' || payment.status === 'completed') && payment.paymentStatus === 'paid' ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Pending</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">—</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {!payment.farmerPaidOut && (payment.status === 'delivered' || payment.status === 'completed') && payment.paymentStatus === 'paid' && (
+                              <button
+                                onClick={() => handleMarkFarmerPaid(payment._id)}
+                                disabled={actionLoading === 'farmerPaid-' + payment._id}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
+                              >
+                                {actionLoading === 'farmerPaid-' + payment._id ? 'Processing...' : 'Mark Paid'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

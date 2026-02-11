@@ -4,6 +4,7 @@ import api from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
 import ImageUpload from '../components/ImageUpload';
 import WhatsAppShareButton, { shareProduceListing, shareMarketPrice } from '../components/WhatsAppShare';
+import LoadingOverlay, { ErrorBanner, SuccessToast, ButtonSpinner } from '../components/LoadingOverlay';
 
 const FarmerDashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +18,9 @@ const FarmerDashboard = () => {
   const [schemes, setSchemes] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [showAddCrop, setShowAddCrop] = useState(false);
   const [priceSearch, setPriceSearch] = useState('');
   const [selectedState, setSelectedState] = useState('');
@@ -74,6 +78,7 @@ const FarmerDashboard = () => {
       setOrders(ordersRes.data.orders || []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('Failed to load dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -81,6 +86,7 @@ const FarmerDashboard = () => {
 
   const handleAddCrop = async (e) => {
     e.preventDefault();
+    setActionLoading('addCrop');
     try {
       await api.post('/api/produce', newCrop);
       setShowAddCrop(false);
@@ -90,38 +96,60 @@ const FarmerDashboard = () => {
         image: ''
       });
       fetchData();
+      setSuccessMsg('Crop added successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error adding crop:', error);
-      alert('Failed to add crop');
+      setError('Failed to add crop. Please try again.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDeleteCrop = async (id) => {
     if (window.confirm('Are you sure you want to delete this crop?')) {
+      setActionLoading('delete-' + id);
       try {
         await api.delete(`/api/produce/${id}`);
         fetchData();
+        setSuccessMsg('Crop deleted successfully!');
+        setTimeout(() => setSuccessMsg(''), 3000);
       } catch (error) {
         console.error('Error deleting crop:', error);
+        setError('Failed to delete crop.');
+      } finally {
+        setActionLoading(null);
       }
     }
   };
 
   const handleMarkSold = async (id) => {
+    setActionLoading('sold-' + id);
     try {
       await api.patch(`/api/produce/${id}/sold`);
       fetchData();
+      setSuccessMsg('Marked as sold!');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error marking as sold:', error);
+      setError('Failed to mark as sold.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleOrderAction = async (orderId, status) => {
+    setActionLoading('order-' + orderId);
     try {
       await api.patch(`/api/orders/${orderId}/status`, { status });
       fetchData();
+      setSuccessMsg(`Order ${status} successfully!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error updating order:', error);
+      setError('Failed to update order status.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -143,16 +171,14 @@ const FarmerDashboard = () => {
   }, [marketPrices]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    );
+    return <LoadingOverlay show={true} fullPage={true} message="Loading your dashboard..." />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SuccessToast message={successMsg} onDismiss={() => setSuccessMsg('')} />
       <div className="max-w-7xl mx-auto px-4 py-6">
+        <ErrorBanner message={error} onDismiss={() => setError('')} />
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
@@ -208,7 +234,7 @@ const FarmerDashboard = () => {
                     <h2 className="text-lg font-semibold text-gray-800">{t('todaysMarketPrices')}</h2>
                     <p className="text-xs text-gray-400 mt-0.5">{t('sourceAGMARKNET')}</p>
                   </div>
-                  <button onClick={() => setActiveTab('prices')} className="text-green-600 hover:text-green-700 text-sm font-medium">
+                  <button onClick={() => navigate('/farmer-dashboard?tab=prices')} className="text-green-600 hover:text-green-700 text-sm font-medium">
                     {t('viewAll')} →
                   </button>
                 </div>
@@ -229,7 +255,7 @@ const FarmerDashboard = () => {
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-800">Recent Orders</h2>
-                  <button onClick={() => setActiveTab('orders')} className="text-green-600 hover:text-green-700 text-sm font-medium">
+                  <button onClick={() => navigate('/farmer-dashboard?tab=orders')} className="text-green-600 hover:text-green-700 text-sm font-medium">
                     View All
                   </button>
                 </div>
@@ -245,10 +271,14 @@ const FarmerDashboard = () => {
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                           order.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
+                          order.status === 'packed' ? 'bg-indigo-100 text-indigo-700' :
+                          order.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
+                          order.status === 'out_for_delivery' ? 'bg-orange-100 text-orange-700' :
+                          order.status === 'delivered' ? 'bg-green-100 text-green-700' :
                           order.status === 'completed' ? 'bg-green-100 text-green-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
-                          {order.status}
+                          {order.status === 'out_for_delivery' ? 'Out for Delivery' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
                         </span>
                       </div>
                     </div>
@@ -631,18 +661,36 @@ const FarmerDashboard = () => {
                         </div>
                         <div className="flex flex-col sm:items-end gap-2">
                           <p className="text-xl font-bold text-green-600">₹{order.totalAmount?.toLocaleString('en-IN')}</p>
-                          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                            order.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
-                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            order.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              order.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
+                              order.status === 'packed' ? 'bg-indigo-100 text-indigo-700' :
+                              order.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
+                              order.status === 'out_for_delivery' ? 'bg-orange-100 text-orange-700' :
+                              order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                              order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              order.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {order.status === 'out_for_delivery' ? 'Out for Delivery' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                            </span>
+                            {/* Payment Badge */}
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' :
+                              order.paymentStatus === 'refunded' ? 'bg-orange-100 text-orange-700' :
+                              order.paymentMethod === 'cod' ? 'bg-amber-100 text-amber-700' :
+                              'bg-yellow-50 text-yellow-600'
+                            }`}>
+                              {order.paymentStatus === 'paid' ? 'Paid' :
+                               order.paymentStatus === 'refunded' ? 'Refunded' :
+                               order.paymentMethod === 'cod' ? 'COD' : 'Unpaid'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
+                      {/* Order Action Buttons based on current status */}
                       {order.status === 'pending' && (
                         <div className="mt-4 flex gap-2">
                           <button
@@ -659,13 +707,60 @@ const FarmerDashboard = () => {
                           </button>
                         </div>
                       )}
+
                       {order.status === 'accepted' && (
                         <div className="mt-4">
                           <button
-                            onClick={() => handleOrderAction(order._id, 'completed')}
-                            className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                            onClick={() => handleOrderAction(order._id, 'packed')}
+                            className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2"
                           >
-                            Mark as Completed
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            Mark as Packed
+                          </button>
+                        </div>
+                      )}
+
+                      {order.status === 'packed' && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleOrderAction(order._id, 'shipped')}
+                            className="w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                            </svg>
+                            Mark as Shipped
+                          </button>
+                        </div>
+                      )}
+
+                      {order.status === 'shipped' && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleOrderAction(order._id, 'out_for_delivery')}
+                            className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Mark Out for Delivery
+                          </button>
+                        </div>
+                      )}
+
+                      {order.status === 'out_for_delivery' && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleOrderAction(order._id, 'delivered')}
+                            className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Mark as Delivered
                           </button>
                         </div>
                       )}

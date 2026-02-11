@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'https://farmer-market-portal.onrender.com'
+const API_BASE_URL = 'http://localhost:3000'
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -51,6 +51,12 @@ export const authAPI = {
     resetPassword: (data) => api.post('/auth/reset-password', data)
 }
 
+// OTP API
+export const otpAPI = {
+    send: (data) => api.post('/otp/send', data),
+    verify: (data) => api.post('/otp/verify', data)
+}
+
 // Profile API
 export const profileAPI = {
     getProfile: () => api.get('/api/profile/me'),
@@ -82,7 +88,16 @@ export const orderAPI = {
     getFarmerOrders: () => api.get('/api/orders/farmer'),
     getById: (id) => api.get(`/api/orders/${id}`),
     updateStatus: (id, data) => api.patch(`/api/orders/${id}/status`, data),
-    cancel: (id) => api.patch(`/api/orders/${id}/cancel`)
+    cancel: (id) => api.patch(`/api/orders/${id}/cancel`),
+    updateTrackingDetails: (id, data) => api.patch(`/api/orders/${id}/tracking`, data)
+}
+
+// Payment API
+export const paymentAPI = {
+    createOrder: (data) => api.post('/api/payments/create-order', data),
+    verify: (data) => api.post('/api/payments/verify', data),
+    selectCOD: (data) => api.post('/api/payments/cod', data),
+    getDetails: (orderId) => api.get(`/api/payments/${orderId}`)
 }
 
 // Admin API
@@ -95,7 +110,9 @@ export const adminAPI = {
     getAllProduce: (params) => api.get('/api/admin/produce', { params }),
     deleteProduce: (id) => api.delete(`/api/admin/produce/${id}`),
     getAllOrders: (params) => api.get('/api/admin/orders', { params }),
-    verifyBuyer: (id) => api.patch(`/api/admin/buyers/${id}/verify`)
+    verifyBuyer: (id) => api.patch(`/api/admin/buyers/${id}/verify`),
+    getPayments: () => api.get('/api/admin/payments'),
+    markFarmerPaid: (orderId) => api.patch(`/api/admin/payments/${orderId}/farmer-paid`)
 }
 
 export default api

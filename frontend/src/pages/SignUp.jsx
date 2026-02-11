@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { setupRecaptcha, sendPhoneOTP, verifyPhoneOTP, clearRecaptcha } from '../config/firebase'
+import { authAPI, otpAPI } from '../config/api'
 
 const SignUp = () => {
   const [step, setStep] = useState(1) // 1: Form, 2: OTP Verification
@@ -108,20 +109,14 @@ const SignUp = () => {
         }
       } else {
         // Use backend for Email OTP
-        const response = await fetch('https://farmer-market-portal.onrender.com/otp/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            type: 'email'
-          })
+        const response = await otpAPI.send({
+          email: formData.email,
+          type: 'email'
         })
         
-        const data = await response.json()
+        const data = response.data
         
-        if (response.ok) {
+        if (data) {
           setOtpSent(true)
           setResendTimer(60)
           setSuccess(`OTP sent to ${formData.email}`)
@@ -163,21 +158,15 @@ const SignUp = () => {
         }
       } else {
         // Verify using backend for email OTP
-        const response = await fetch('https://farmer-market-portal.onrender.com/otp/verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            otp: otpString,
-            type: 'email'
-          })
+        const response = await otpAPI.verify({
+          email: formData.email,
+          otp: otpString,
+          type: 'email'
         })
         
-        const data = await response.json()
+        const data = response.data
         
-        if (response.ok && data.verified) {
+        if (data.verified) {
           setOtpVerified(true)
           setSuccess('OTP verified successfully!')
           // Proceed to registration
@@ -202,22 +191,16 @@ const SignUp = () => {
   // Register user with specific data (for Phone.Email callback)
   const registerUserWithData = async (data) => {
     try {
-      const response = await fetch('https://farmer-market-portal.onrender.com/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: data.fullName,
-          email: data.email,
-          password: data.password,
-          role: data.userType
-        })
+      const response = await authAPI.register({
+        name: data.fullName,
+        email: data.email,
+        password: data.password,
+        role: data.userType
       })
       
-      const responseData = await response.json()
+      const responseData = response.data
       
-      if (response.ok && responseData.success) {
+      if (responseData.success) {
         // Save auth data
         localStorage.setItem('token', responseData.token)
         localStorage.setItem('user', JSON.stringify(responseData.user))

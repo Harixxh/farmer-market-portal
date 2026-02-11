@@ -113,6 +113,7 @@ const NavBar = () => {
         { path: '/admin', tab: 'orders', name: 'Orders', icon: <OrdersIcon /> },
         { path: '/admin', tab: 'market', name: 'Market Prices', icon: <MarketIcon /> },
         { path: '/admin', tab: 'schemes', name: 'Schemes', icon: <SchemesIcon /> },
+        { path: '/admin', tab: 'payments', name: 'Payments', icon: <OrdersIcon /> },
       ]
     } else {
       return [

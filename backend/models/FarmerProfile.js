@@ -25,7 +25,12 @@ const FarmerProfileSchema = mongoose.Schema({
     bankDetails: {
         accountNumber: { type: String },
         ifscCode: { type: String },
-        bankName: { type: String }
+        bankName: { type: String },
+        accountHolderName: { type: String }
+    },
+    upiDetails: {
+        upiId: { type: String },
+        phoneNumber: { type: String }
     },
     aadhaarNumber: {
         type: String

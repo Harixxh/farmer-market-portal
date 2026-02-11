@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import { authAPI } from '../config/api'
 
 const ForgotPassword = () => {
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/forgot-password', { email })
+      const response = await authAPI.forgotPassword({ email })
       setSuccess(response.data.message)
       setStep(2)
     } catch (err) {
@@ -37,7 +37,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/verify-reset-otp', { email, otp })
+      const response = await authAPI.verifyOTP({ email, otp })
       setSuccess(response.data.message)
       setStep(3)
     } catch (err) {
@@ -65,7 +65,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/reset-password', { email, newPassword })
+      const response = await authAPI.resetPassword({ email, newPassword })
       setSuccess(response.data.message)
       setTimeout(() => {
         navigate('/login')
@@ -83,7 +83,7 @@ const ForgotPassword = () => {
     setLoading(true)
 
     try {
-      const response = await axios.post('https://farmer-market-portal.onrender.com/auth/forgot-password', { email })
+      const response = await authAPI.forgotPassword({ email })
       setSuccess('OTP resent successfully')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend OTP')

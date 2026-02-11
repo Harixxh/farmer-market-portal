@@ -28,4 +28,8 @@ router.get('/orders', AdminController.getAllOrders)
 // Buyer verification
 router.patch('/buyers/:id/verify', AdminController.verifyBuyer)
 
+// Payment management
+router.get('/payments', AdminController.getAllPayments)
+router.patch('/payments/:orderId/farmer-paid', AdminController.markFarmerPaid)
+
 module.exports = router

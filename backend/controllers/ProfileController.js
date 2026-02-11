@@ -60,7 +60,7 @@ exports.updateBasicInfo = async (req, res) => {
 exports.updateFarmerProfile = async (req, res) => {
     try {
         const userId = req.userId
-        const { phone, location, farmSize, crops, bankDetails, aadhaarNumber } = req.body
+        const { phone, location, farmSize, crops, bankDetails, upiDetails, aadhaarNumber } = req.body
 
         let profile = await FarmerProfile.findOne({ user: userId })
 
@@ -71,6 +71,7 @@ exports.updateFarmerProfile = async (req, res) => {
             profile.farmSize = farmSize || profile.farmSize
             profile.crops = crops || profile.crops
             profile.bankDetails = bankDetails || profile.bankDetails
+            profile.upiDetails = upiDetails || profile.upiDetails
             profile.aadhaarNumber = aadhaarNumber || profile.aadhaarNumber
             profile.updatedAt = Date.now()
 
@@ -84,6 +85,7 @@ exports.updateFarmerProfile = async (req, res) => {
                 farmSize,
                 crops,
                 bankDetails,
+                upiDetails,
                 aadhaarNumber
             })
             await profile.save()
@@ -104,7 +106,7 @@ exports.updateFarmerProfile = async (req, res) => {
 exports.updateBuyerProfile = async (req, res) => {
     try {
         const userId = req.userId
-        const { businessName, businessType, phone, location, gstNumber, interestedCommodities, minOrderQuantity } = req.body
+        const { businessName, businessType, phone, location, gstNumber, interestedCommodities, minOrderQuantity, shippingAddresses } = req.body
 
         let profile = await BuyerProfile.findOne({ user: userId })
 
@@ -117,6 +119,7 @@ exports.updateBuyerProfile = async (req, res) => {
             profile.gstNumber = gstNumber || profile.gstNumber
             profile.interestedCommodities = interestedCommodities || profile.interestedCommodities
             profile.minOrderQuantity = minOrderQuantity || profile.minOrderQuantity
+            profile.shippingAddresses = shippingAddresses || profile.shippingAddresses
             profile.updatedAt = Date.now()
 
             await profile.save()
@@ -130,7 +133,8 @@ exports.updateBuyerProfile = async (req, res) => {
                 location,
                 gstNumber,
                 interestedCommodities,
-                minOrderQuantity
+                minOrderQuantity,
+                shippingAddresses: shippingAddresses || []
             })
             await profile.save()
         }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
+import { authAPI } from '../config/api'
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -24,19 +25,13 @@ const Login = () => {
     try {
       setLoading(true)
       setError('')
-      const response = await fetch('https://farmer-market-portal.onrender.com/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          credential: credentialResponse.credential
-        })
+      const response = await authAPI.googleAuth({
+        credential: credentialResponse.credential
       })
       
-      const data = await response.json()
+      const data = response.data
       
-      if (response.ok && data.success) {
+      if (data.success) {
         localStorage.setItem('userEmail', data.user.email)
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
@@ -53,7 +48,7 @@ const Login = () => {
         setError(data.message || 'Google login failed')
       }
     } catch (err) {
-      setError('Unable to connect to server')
+      setError(err.response?.data?.message || 'Unable to connect to server')
     } finally {
       setLoading(false)
     }
@@ -65,20 +60,14 @@ const Login = () => {
     setError('')
     
     try {
-      const response = await fetch('https://farmer-market-portal.onrender.com/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        })
+      const response = await authAPI.login({
+        email: formData.email,
+        password: formData.password
       })
       
-      const data = await response.json()
+      const data = response.data
       
-      if (response.ok && data.success) {
+      if (data.success) {
         localStorage.setItem('userEmail', data.user.email)
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
@@ -95,7 +84,7 @@ const Login = () => {
         setError(data.message || 'Login failed. Please try again.')
       }
     } catch (err) {
-      setError('Unable to connect to server. Please try again.')
+      setError(err.response?.data?.message || 'Unable to connect to server. Please try again.')
     } finally {
       setLoading(false)
     }

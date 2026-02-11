@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
+import PaymentModal from '../components/PaymentModal';
+import OrderTracking from '../components/OrderTracking';
+import LoadingOverlay, { ErrorBanner, SuccessToast, ButtonSpinner } from '../components/LoadingOverlay';
 
 const BuyerDashboard = () => {
   const navigate = useNavigate();
@@ -14,11 +17,31 @@ const BuyerDashboard = () => {
   const [farmers, setFarmers] = useState([]);
   const [myOrders, setMyOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedProduce, setSelectedProduce] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState(null);
+  const [showTracking, setShowTracking] = useState(false);
+  const [trackingOrder, setTrackingOrder] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [selectedShippingAddress, setSelectedShippingAddress] = useState(null);
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    name: '',
+    phone: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    landmark: ''
+  });
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -47,18 +70,30 @@ const BuyerDashboard = () => {
   const fetchData = async () => {
     try {
       const cfg = { _skipAuthRedirect: true };
-      const [produceRes, pricesRes, farmersRes, ordersRes] = await Promise.all([
+      const [produceRes, pricesRes, farmersRes, ordersRes, profileRes] = await Promise.all([
         api.get('/api/produce/marketplace', cfg).catch(() => ({ data: { produce: [] } })),
         api.get('/api/market/prices', cfg).catch(() => ({ data: { prices: [] } })),
         api.get('/api/profile/farmers', cfg).catch(() => ({ data: { farmers: [] } })),
-        api.get('/api/orders/buyer', cfg).catch(() => ({ data: { orders: [] } }))
+        api.get('/api/orders/buyer', cfg).catch(() => ({ data: { orders: [] } })),
+        api.get('/api/profile/me', cfg).catch(() => ({ data: { profile: null } }))
       ]);
       setProduce(produceRes.data.produce || []);
       setMarketPrices(pricesRes.data.prices || []);
       setFarmers(farmersRes.data.farmers || []);
       setMyOrders(ordersRes.data.orders || []);
+      
+      if (profileRes.data.success && profileRes.data.profile) {
+        setProfile(profileRes.data.profile);
+        // Set first address as default if none selected
+        if (profileRes.data.profile.shippingAddresses && profileRes.data.profile.shippingAddresses.length > 0) {
+          const defaultAddr = profileRes.data.profile.shippingAddresses.find(addr => addr.isDefault) || 
+                             profileRes.data.profile.shippingAddresses[0];
+          setSelectedShippingAddress(defaultAddr);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('Failed to load dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -67,31 +102,69 @@ const BuyerDashboard = () => {
   const handlePlaceOrder = async () => {
     if (!selectedProduce || orderQuantity <= 0) return;
     
+    let shippingAddress = selectedShippingAddress;
+    
+    // If no saved address is selected and user is adding new address
+    if (!shippingAddress && showAddAddress) {
+      if (!newAddress.name || !newAddress.phone || !newAddress.addressLine1 || !newAddress.city || !newAddress.state || !newAddress.pincode) {
+        setError('Please fill in all required address fields');
+        return;
+      }
+      shippingAddress = newAddress;
+    }
+    
+    if (!shippingAddress) {
+      setError('Please select or add a shipping address');
+      return;
+    }
+    
+    setActionLoading('placeOrder');
     try {
       await api.post('/api/orders', {
         produceId: selectedProduce._id,
         quantity: orderQuantity,
-        totalAmount: orderQuantity * selectedProduce.expectedPrice
+        totalAmount: orderQuantity * selectedProduce.expectedPrice,
+        shippingAddress
       });
       setShowOrderModal(false);
       setSelectedProduce(null);
       setOrderQuantity(1);
+      setSelectedShippingAddress(null);
+      setShowAddAddress(false);
+      setNewAddress({
+        name: '',
+        phone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        pincode: '',
+        landmark: ''
+      });
       fetchData();
-      alert('Order placed successfully!');
+      setSuccessMsg('Order placed successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error placing order:', error);
-      alert('Failed to place order');
+      setError(error.response?.data?.message || 'Failed to place order. Please try again.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
-    
+    setActionLoading('cancel-' + orderId);
     try {
       await api.patch(`/api/orders/${orderId}/cancel`);
       fetchData();
+      setSuccessMsg('Order cancelled successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error cancelling order:', error);
+      setError('Failed to cancel order.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -111,11 +184,7 @@ const BuyerDashboard = () => {
   const categories = ['all', 'vegetables', 'fruits', 'grains', 'pulses', 'spices', 'oilseeds'];
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    );
+    return <LoadingOverlay show={true} fullPage={true} message="Loading marketplace..." />;
   }
 
   const pendingOrders = myOrders.filter(o => o.status === 'pending').length;
@@ -123,7 +192,9 @@ const BuyerDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SuccessToast message={successMsg} onDismiss={() => setSuccessMsg('')} />
       <div className="max-w-7xl mx-auto px-4 py-6">
+        <ErrorBanner message={error} onDismiss={() => setError('')} />
         {/* Browse Crops Tab */}
         {activeTab === 'browse' && (
           <div className="space-y-6">
@@ -234,7 +305,26 @@ const BuyerDashboard = () => {
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-xl font-semibold text-gray-800">{t('placeOrder')}</h3>
-                      <button onClick={() => setShowOrderModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                      <button 
+                        onClick={() => {
+                          setShowOrderModal(false);
+                          setShowAddAddress(false);
+                          setSelectedShippingAddress(null);
+                          setNewAddress({
+                            name: '',
+                            phone: '',
+                            addressLine1: '',
+                            addressLine2: '',
+                            city: '',
+                            state: '',
+                            pincode: '',
+                            landmark: ''
+                          });
+                        }} 
+                        className="text-gray-400 hover:text-gray-600 text-2xl"
+                      >
+                        &times;
+                      </button>
                     </div>
 
                     <div className="space-y-4">
@@ -264,6 +354,131 @@ const BuyerDashboard = () => {
                         />
                       </div>
 
+                      {/* Shipping Address Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
+                        {profile?.shippingAddresses && profile.shippingAddresses.length > 0 ? (
+                          <div className="space-y-2">
+                            {profile.shippingAddresses.map((address, index) => (
+                              <div key={index} className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                selectedShippingAddress === address ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                              }`} onClick={() => { setSelectedShippingAddress(address); setShowAddAddress(false); }}>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm">{address.name}</span>
+                                      <span className="text-xs text-gray-500">({address.phone})</span>
+                                      {address.isDefault && (
+                                        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Default</span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {address.addressLine1}, {address.city}, {address.state} - {address.pincode}
+                                    </p>
+                                  </div>
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                    selectedShippingAddress === address ? 'border-green-500 bg-green-500' : 'border-gray-300'
+                                  }`}>
+                                    {selectedShippingAddress === address && (
+                                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => { setShowAddAddress(true); setSelectedShippingAddress(null); }}
+                              className="w-full p-3 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-green-500 hover:text-green-600 transition-colors"
+                            >
+                              + Add New Address
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-center py-4">
+                            <p className="text-sm text-gray-500 mb-2">No saved addresses found</p>
+                            <button
+                              onClick={() => setShowAddAddress(true)}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                            >
+                              Add Address
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add New Address Form */}
+                      {showAddAddress && (
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <h4 className="font-medium text-gray-900 mb-3">Add New Address</h4>
+                          <div className="grid grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={newAddress.name}
+                              onChange={(e) => setNewAddress({...newAddress, name: e.target.value})}
+                              placeholder="Full Name *"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="tel"
+                              value={newAddress.phone}
+                              onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})}
+                              placeholder="Phone Number *"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.addressLine1}
+                              onChange={(e) => setNewAddress({...newAddress, addressLine1: e.target.value})}
+                              placeholder="Address Line 1 *"
+                              className="col-span-2 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.addressLine2}
+                              onChange={(e) => setNewAddress({...newAddress, addressLine2: e.target.value})}
+                              placeholder="Address Line 2 (Optional)"
+                              className="col-span-2 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.city}
+                              onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
+                              placeholder="City *"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.state}
+                              onChange={(e) => setNewAddress({...newAddress, state: e.target.value})}
+                              placeholder="State *"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.pincode}
+                              onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
+                              placeholder="Pincode *"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.landmark}
+                              onChange={(e) => setNewAddress({...newAddress, landmark: e.target.value})}
+                              placeholder="Landmark (Optional)"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => setShowAddAddress(false)}
+                              className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="bg-green-50 rounded-lg p-4">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">{t('totalAmount')}:</span>
@@ -275,16 +490,31 @@ const BuyerDashboard = () => {
 
                       <div className="flex gap-3 pt-4">
                         <button
-                          onClick={() => setShowOrderModal(false)}
+                          onClick={() => {
+                            setShowOrderModal(false);
+                            setShowAddAddress(false);
+                            setSelectedShippingAddress(null);
+                            setNewAddress({
+                              name: '',
+                              phone: '',
+                              addressLine1: '',
+                              addressLine2: '',
+                              city: '',
+                              state: '',
+                              pincode: '',
+                              landmark: ''
+                            });
+                          }}
                           className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg hover:bg-gray-50 font-medium"
                         >
                           {t('cancel')}
                         </button>
                         <button
                           onClick={handlePlaceOrder}
-                          className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium"
+                          disabled={!selectedShippingAddress && (!showAddAddress || !newAddress.name || !newAddress.phone || !newAddress.addressLine1 || !newAddress.city || !newAddress.state || !newAddress.pincode)}
+                          className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
-                          {t('confirmOrder')}
+                          {actionLoading === 'placeOrder' ? 'Placing...' : t('confirmOrder')}
                         </button>
                       </div>
                     </div>
@@ -410,34 +640,100 @@ const BuyerDashboard = () => {
                         </div>
                         <div className="flex flex-col sm:items-end gap-2">
                           <p className="text-xl font-bold text-green-600">₹{order.totalAmount?.toLocaleString('en-IN')}</p>
-                          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                            order.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
-                            order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            order.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                            order.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              order.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
+                              order.status === 'packed' ? 'bg-indigo-100 text-indigo-700' :
+                              order.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
+                              order.status === 'out_for_delivery' ? 'bg-orange-100 text-orange-700' :
+                              order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                              order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              order.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                              order.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {order.status === 'out_for_delivery' ? 'Out for Delivery' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                            </span>
+                            {/* Payment status badge */}
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' :
+                              order.paymentStatus === 'refunded' ? 'bg-orange-100 text-orange-700' :
+                              'bg-yellow-50 text-yellow-600'
+                            }`}>
+                              {order.paymentStatus === 'paid' ? 'Paid' :
+                               order.paymentStatus === 'refunded' ? 'Refunded' :
+                               order.paymentMethod === 'cod' ? 'COD' : 'Unpaid'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
-                      {order.status === 'pending' && (
-                        <div className="mt-4">
+                      {/* Action buttons */}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {/* Pay Now button - show for accepted or pending orders that haven't been paid */}
+                        {['pending', 'accepted'].includes(order.status) && order.paymentStatus !== 'paid' && order.paymentMethod !== 'cod' && (
+                          <button
+                            onClick={() => { setPaymentOrder(order); setShowPaymentModal(true); }}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                            Pay Now
+                          </button>
+                        )}
+
+                        {/* Track Order button */}
+                        {!['cancelled', 'rejected'].includes(order.status) && (
+                          <button
+                            onClick={() => { setTrackingOrder(order); setShowTracking(true); }}
+                            className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            Track Order
+                          </button>
+                        )}
+
+                        {/* Cancel button */}
+                        {['pending', 'accepted'].includes(order.status) && (
                           <button
                             onClick={() => handleCancelOrder(order._id)}
                             className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-100"
                           >
                             {t('cancelOrder')}
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
+            {/* Payment Modal */}
+            {showPaymentModal && paymentOrder && (
+              <PaymentModal
+                order={paymentOrder}
+                onClose={() => { setShowPaymentModal(false); setPaymentOrder(null); }}
+                onSuccess={() => {
+                  setShowPaymentModal(false);
+                  setPaymentOrder(null);
+                  fetchData();
+                  alert('Payment successful!');
+                }}
+              />
+            )}
+
+            {/* Order Tracking Modal */}
+            {showTracking && trackingOrder && (
+              <OrderTracking
+                order={trackingOrder}
+                onClose={() => { setShowTracking(false); setTrackingOrder(null); }}
+              />
+            )}
           </div>
         )}
       </div>

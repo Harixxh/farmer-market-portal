@@ -24,6 +24,18 @@ const BuyerProfileSchema = mongoose.Schema({
         city: { type: String },
         address: { type: String }
     },
+    shippingAddresses: [{
+        name: { type: String },
+        phone: { type: String },
+        addressLine1: { type: String },
+        addressLine2: { type: String },
+        city: { type: String },
+        state: { type: String },
+        pincode: { type: String },
+        landmark: { type: String },
+        addressType: { type: String, enum: ['home', 'office', 'warehouse'], default: 'office' },
+        isDefault: { type: Boolean, default: false }
+    }],
     gstNumber: {
         type: String
     },

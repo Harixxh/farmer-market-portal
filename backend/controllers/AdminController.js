@@ -351,3 +351,85 @@ exports.verifyBuyer = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error', error: error.message })
     }
 }
+
+// Get all payments (admin)
+exports.getAllPayments = async (req, res) => {
+    try {
+        const orders = await Order.find({
+            paymentStatus: { $in: ['paid', 'refunded'] }
+        })
+        .populate('farmer', 'name email')
+        .populate('buyer', 'name email')
+        .populate('produce', 'cropName')
+        .sort({ paidAt: -1 })
+
+        const totalCollected = orders
+            .filter(o => o.paymentStatus === 'paid')
+            .reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+
+        const totalRefunded = orders
+            .filter(o => o.paymentStatus === 'refunded')
+            .reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+
+        const pendingPayouts = orders.filter(o => 
+            o.paymentStatus === 'paid' && 
+            (o.status === 'delivered' || o.status === 'completed') &&
+            !o.farmerPaidOut
+        )
+
+        const farmerPayoutTotal = pendingPayouts.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+
+        res.json({
+            success: true,
+            payments: orders.map(o => ({
+                _id: o._id,
+                orderId: o._id,
+                farmer: o.farmer,
+                buyer: o.buyer,
+                produce: o.produce,
+                amount: o.totalAmount,
+                paymentMethod: o.paymentMethod,
+                paymentStatus: o.paymentStatus,
+                razorpayPaymentId: o.razorpayPaymentId,
+                paidAt: o.paidAt,
+                status: o.status,
+                farmerPaidOut: o.farmerPaidOut || false,
+                createdAt: o.createdAt
+            })),
+            stats: {
+                totalCollected,
+                totalRefunded,
+                pendingPayouts: pendingPayouts.length,
+                farmerPayoutTotal
+            }
+        })
+    } catch (error) {
+        console.error('Get payments error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}
+
+// Mark farmer payout as done (admin)
+exports.markFarmerPaid = async (req, res) => {
+    try {
+        const { orderId } = req.params
+        const order = await Order.findById(orderId)
+        
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' })
+        }
+
+        order.farmerPaidOut = true
+        order.farmerPaidOutAt = new Date()
+        order.farmerPaidOutBy = req.userId
+        await order.save()
+
+        res.json({
+            success: true,
+            message: 'Farmer payout marked as completed'
+        })
+    } catch (error) {
+        console.error('Mark farmer paid error:', error)
+        res.status(500).json({ success: false, message: 'Server error', error: error.message })
+    }
+}

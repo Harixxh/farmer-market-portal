@@ -23,7 +23,12 @@ const Profile = () => {
     businessType: '',
     gstNumber: '',
     interestedCommodities: [],
-    minOrderQuantity: ''
+    minOrderQuantity: '',
+    // Farmer fields
+    upiId: '',
+    upiPhoneNumber: '',
+    // Buyer fields
+    shippingAddresses: []
   })
   const [stats, setStats] = useState({
     totalProduce: 0,
@@ -35,6 +40,19 @@ const Profile = () => {
   })
   const [orders, setOrders] = useState([])
   const [newCrop, setNewCrop] = useState('')
+  const [newAddress, setNewAddress] = useState({
+    name: '',
+    phone: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    landmark: '',
+    addressType: 'home',
+    isDefault: false
+  })
+  const [isAddingAddress, setIsAddingAddress] = useState(false)
 
   const [notifications, setNotifications] = useState({
     priceAlerts: true,
@@ -88,7 +106,12 @@ const Profile = () => {
           businessType: profileData?.businessType || '',
           gstNumber: profileData?.gstNumber || '',
           interestedCommodities: profileData?.interestedCommodities || [],
-          minOrderQuantity: profileData?.minOrderQuantity || ''
+          minOrderQuantity: profileData?.minOrderQuantity || '',
+          // Farmer fields
+          upiId: profileData?.upiDetails?.upiId || '',
+          upiPhoneNumber: profileData?.upiDetails?.phoneNumber || '',
+          // Buyer fields
+          shippingAddresses: profileData?.shippingAddresses || []
         }))
 
         // Fetch stats based on role
@@ -151,7 +174,11 @@ const Profile = () => {
             value: parseFloat(profile.farmSizeValue) || 0,
             unit: profile.farmSizeUnit || 'acres'
           },
-          crops: profile.crops
+          crops: profile.crops,
+          upiDetails: {
+            upiId: profile.upiId,
+            phoneNumber: profile.upiPhoneNumber
+          }
         })
       } else if (user?.role === 'buyer') {
         await profileAPI.updateBuyerProfile({
@@ -165,7 +192,8 @@ const Profile = () => {
           businessType: profile.businessType,
           gstNumber: profile.gstNumber,
           interestedCommodities: profile.interestedCommodities,
-          minOrderQuantity: profile.minOrderQuantity
+          minOrderQuantity: profile.minOrderQuantity,
+          shippingAddresses: profile.shippingAddresses
         })
       }
 
@@ -201,6 +229,68 @@ const Profile = () => {
     setProfile(prev => ({
       ...prev,
       crops: prev.crops.filter(crop => crop !== cropToRemove)
+    }))
+  }
+
+  const handleAddAddress = () => {
+    if (newAddress.name.trim() && newAddress.phone.trim() && newAddress.addressLine1.trim() && 
+        newAddress.city.trim() && newAddress.state.trim() && newAddress.pincode.trim()) {
+      
+      // If this is the first address or explicitly set as default, make it default
+      const isFirstAddress = profile.shippingAddresses.length === 0
+      const updatedAddress = { ...newAddress, isDefault: isFirstAddress || newAddress.isDefault }
+      
+      // If setting as default, unmark other addresses
+      let updatedAddresses = profile.shippingAddresses
+      if (updatedAddress.isDefault) {
+        updatedAddresses = updatedAddresses.map(addr => ({ ...addr, isDefault: false }))
+      }
+      
+      setProfile(prev => ({
+        ...prev,
+        shippingAddresses: [...updatedAddresses, updatedAddress]
+      }))
+      
+      // Reset the form
+      setNewAddress({
+        name: '',
+        phone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        pincode: '',
+        landmark: '',
+        addressType: 'home',
+        isDefault: false
+      })
+      setIsAddingAddress(false)
+    }
+  }
+
+  const handleDeleteAddress = (index) => {
+    const updatedAddresses = profile.shippingAddresses.filter((_, i) => i !== index)
+    
+    // If we deleted the default address and there are other addresses, make the first one default
+    if (profile.shippingAddresses[index]?.isDefault && updatedAddresses.length > 0) {
+      updatedAddresses[0].isDefault = true
+    }
+    
+    setProfile(prev => ({
+      ...prev,
+      shippingAddresses: updatedAddresses
+    }))
+  }
+
+  const handleSetDefaultAddress = (index) => {
+    const updatedAddresses = profile.shippingAddresses.map((addr, i) => ({
+      ...addr,
+      isDefault: i === index
+    }))
+    
+    setProfile(prev => ({
+      ...prev,
+      shippingAddresses: updatedAddresses
     }))
   }
 
@@ -577,6 +667,48 @@ const Profile = () => {
                       </div>
                     )}
                   </div>
+                  
+                  {/* UPI Details Section */}
+                  <div className="md:col-span-2">
+                    <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Payment Details (UPI)
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">UPI ID</label>
+                        <input
+                          type="text"
+                          value={profile.upiId}
+                          onChange={(e) => setProfile({...profile, upiId: e.target.value})}
+                          disabled={!isEditing}
+                          placeholder="farmer@paytm | farmer@phonepay"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">UPI Registered Phone</label>
+                        <input
+                          type="tel"
+                          value={profile.upiPhoneNumber}
+                          onChange={(e) => setProfile({...profile, upiPhoneNumber: e.target.value})}
+                          disabled={!isEditing}
+                          placeholder="+91 98765 43210"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-gray-600 flex items-start gap-1">
+                          <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Your UPI details will be used by buyers to make direct payments for orders. Ensure your UPI ID is active and the phone number matches your UPI registration.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -628,6 +760,189 @@ const Profile = () => {
                       placeholder="e.g., 10 quintals"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                     />
+                  </div>
+                  
+                  {/* Shipping Addresses Section */}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-gray-800 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Shipping Addresses
+                      </h3>
+                      {isEditing && (
+                        <button
+                          onClick={() => setIsAddingAddress(true)}
+                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Address
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {profile.shippingAddresses.map((address, index) => (
+                        <div key={index} className={`p-4 border rounded-lg ${address.isDefault ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-gray-900">{address.name}</span>
+                                <span className="text-sm text-gray-600">({address.phone})</span>
+                                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                  address.addressType === 'home' ? 'bg-blue-100 text-blue-700' :
+                                  address.addressType === 'office' ? 'bg-purple-100 text-purple-700' : 
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {address.addressType}
+                                </span>
+                                {address.isDefault && (
+                                  <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Default</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                {address.addressLine1}
+                                {address.addressLine2 && `, ${address.addressLine2}`}
+                                {address.landmark && `, ${address.landmark}`}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {address.city}, {address.state} - {address.pincode}
+                              </p>
+                            </div>
+                            {isEditing && (
+                              <div className="flex gap-2 ml-4">
+                                {!address.isDefault && (
+                                  <button
+                                    onClick={() => handleSetDefaultAddress(index)}
+                                    className="text-xs text-green-600 hover:text-green-800"
+                                  >
+                                    Set Default
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteAddress(index)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {profile.shippingAddresses.length === 0 && (
+                        <div className="text-center py-6 text-gray-500">
+                          <svg className="w-12 h-12 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          <p>No shipping addresses added yet</p>
+                        </div>
+                      )}
+                      
+                      {/* Add Address Form */}
+                      {isEditing && isAddingAddress && (
+                        <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                          <h4 className="font-medium text-gray-900 mb-3">Add New Address</h4>
+                          <div className="grid grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={newAddress.name}
+                              onChange={(e) => setNewAddress({...newAddress, name: e.target.value})}
+                              placeholder="Full Name"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="tel"
+                              value={newAddress.phone}
+                              onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})}
+                              placeholder="Phone Number"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.addressLine1}
+                              onChange={(e) => setNewAddress({...newAddress, addressLine1: e.target.value})}
+                              placeholder="Address Line 1"
+                              className="col-span-2 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.addressLine2}
+                              onChange={(e) => setNewAddress({...newAddress, addressLine2: e.target.value})}
+                              placeholder="Address Line 2 (Optional)"
+                              className="col-span-2 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.city}
+                              onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
+                              placeholder="City"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.state}
+                              onChange={(e) => setNewAddress({...newAddress, state: e.target.value})}
+                              placeholder="State"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.pincode}
+                              onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
+                              placeholder="Pincode"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={newAddress.landmark}
+                              onChange={(e) => setNewAddress({...newAddress, landmark: e.target.value})}
+                              placeholder="Landmark (Optional)"
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            />
+                            <select
+                              value={newAddress.addressType}
+                              onChange={(e) => setNewAddress({...newAddress, addressType: e.target.value})}
+                              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                            >
+                              <option value="home">Home</option>
+                              <option value="office">Office</option>
+                              <option value="other">Other</option>
+                            </select>
+                            <label className="flex items-center gap-2 text-sm text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={newAddress.isDefault}
+                                onChange={(e) => setNewAddress({...newAddress, isDefault: e.target.checked})}
+                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                              />
+                              Set as default
+                            </label>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={handleAddAddress}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                            >
+                              Save Address
+                            </button>
+                            <button
+                              onClick={() => setIsAddingAddress(false)}
+                              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
